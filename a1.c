@@ -29,6 +29,7 @@ int total_turnaround_time = 0;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond1 = PTHREAD_COND_INITIALIZER;
 
 int peek() {                                      //returns first task number of the ready queue
    return rq[front].task;
@@ -112,23 +113,35 @@ void* task(void *arg1){
     FILE *fp1;
     fp1 = fopen("simulation_log", "a");         //append to simulation_log
 
-    for(;;){
-        
-        if (!isFull()){        
+    bool val;
 
+    for(;;){
+        //printf("s\n");
+        
+        val = isFull();
+
+        printf("%d %d %d\n", val, m, items);
+        if (!val){        
+
+        printf("s");
         pthread_mutex_lock(&mutex);                             //mutex lock
         printf("sss");
         add(tempQueue[0][anchor+l],tempQueue[1][anchor+l]);     //critical section
         time_t T= time(NULL);
         struct  tm tm = *localtime(&T);
         
-        pthread_cond_signal(&cond);
+        //pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex); 
 
         fprintf(fp1,"%d %d %02d:%02d:%02d\n", tempQueue[0][anchor+l], tempQueue[1][anchor+l], tm.tm_hour, tm.tm_min, tm.tm_sec);    //appends task number, burst time & executed time
         }
         else
         {
+            pthread_mutex_lock(&mutex);
+            pthread_cond_signal(&cond);
+            printf("Task function waits\n");
+            pthread_cond_wait(&cond1,&mutex);
+            pthread_mutex_unlock(&mutex);         
         }
         anchor += m-size();
     }   
@@ -139,7 +152,6 @@ void* task(void *arg1){
 void printTask(int t){
     FILE *fp2;
     fp2 = fopen("simulation_log", "a");
-    fprintf(fp2,"\nTask %d", t);
     
     time_t T= time(NULL);
     struct  tm tm = *localtime(&T);
@@ -191,7 +203,7 @@ int main(int args, char* argv[]){
 
     loadfile();
 
-    printf("%d", size());
+    //printf("%d", size());
 
     pthread_t id;
     /*pthread_t id2;
