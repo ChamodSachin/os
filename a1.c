@@ -293,7 +293,7 @@ int main(int args, char* argv[]){
 
     rq = malloc(m*sizeof*rq);   //memory allocation for readyQueue
 
-    printf("Enter Number of Tasks : ");
+    printf("Enter Number of lines in tasks_file (1-100) : ");
     scanf("%d", &lines);
 
     loadfile();     //loading whole file to the tempQueue
