@@ -29,6 +29,7 @@ int front = 0;
 int rear = -1;
 int items = 0;
 int anchor = 0;
+int comp = 0;
 
 //shared variables
 
@@ -84,12 +85,14 @@ void add(int taskNo, int cpuBurst) {                //adds items to the ready qu
 
 int * remTask() {                                         //removes items from the ready queue
    static int qTask[5];                                   //C creates a warning when returning the address of a local variable outside the function
-   front++;
+   
    qTask[0] = rq[front].task;
    qTask[1] = rq[front].burstTime; 
-   qTask[2] = rq[rear].hour;
-   qTask[3] = rq[rear].minute;
-   qTask[4] = rq[rear].second;
+   qTask[2] = rq[front].hour;
+   qTask[3] = rq[front].minute;
+   qTask[4] = rq[front].second;
+
+   front++;
 
    if(front == m) {
       front = 0;
@@ -173,15 +176,18 @@ void* task(void *arg1){
         else
         {
             pthread_mutex_lock(&mutex);
-            pthread_cond_signal(&cond);             //      signals 
+            pthread_cond_signal(&cond);             //signals 
             printf("Task function waits\n");
             pthread_cond_wait(&cond1,&mutex);
             pthread_mutex_unlock(&mutex);
         }
-                //anchor acts as the rear of tempQueue
     }   
 
     printf("Task Function Completed\n");
+
+    pthread_mutex_lock(&mutex);
+    comp = 1;
+    pthread_mutex_unlock(&mutex);
 
     fclose(fp1); 
 
@@ -224,42 +230,47 @@ void* cpu(void *args2){                 //cpu function
             fprintf(fp2,"\nStatistics for CPU: %d", cpuNo);
             num_tasks++;
             
-            fprintf(fp2,"\nTask %d", t[1]);
+            fprintf(fp2,"\nTask %d", task);
 
             fprintf(fp2,"\nArrival time: %02d:%02d:%02d\n", thour, tminute, tsecond);
             fprintf(fp2,"\nService time: %02d:%02d:%02d\n", tm.tm_hour, tm.tm_min, tm.tm_sec);
 
             total_waiting_time += ((60*60*(tm.tm_hour - thour)) + (60*(tm.tm_min - tminute)) + tm.tm_sec - tsecond);
+            pthread_mutex_unlock(&mutex);
+
+            //printf("ID %d BT %d\n", task, burst_time);
 
             sleep(burst_time);
 
+            pthread_mutex_lock(&mutex);
             time_t T1= time(NULL);                                   //process completion time
             struct  tm tm1 = *localtime(&T1);
 
             fprintf(fp2,"\nStatistics for CPU: %d", cpuNo);
             num_tasks++;
             
-            fprintf(fp2,"\nTask %d", t[1]);
+            fprintf(fp2,"\nTask %d", task);
 
             fprintf(fp2,"\nArrival time: %02d:%02d:%02d\n", thour, tminute, tsecond);
             fprintf(fp2,"\nCompletion time: %02d:%02d:%02d\n", tm1.tm_hour, tm1.tm_min, tm1.tm_sec);
 
-            printf("\nTask %d Completed", t[1]);
+            total_turnaround_time += ((60*60*(tm1.tm_hour - thour)) + (60*(tm1.tm_min - tminute)) + tm1.tm_sec - tsecond);
+
+            printf("\nTask %d Completed", task);
             printf("\nArrival time: %02d:%02d:%02d\n", thour, tminute, tsecond);
             printf("\nService time: %02d:%02d:%02d\n", tm.tm_hour, tm.tm_min, tm.tm_sec);
             printf("\nCompletion time: %02d:%02d:%02d\n", tm1.tm_hour, tm1.tm_min, tm1.tm_sec);
             pthread_mutex_unlock(&mutex);
 
-        }else{
+        }else if(isEmpty()&&comp==0){
             printf("CPU %d Waits\n", cpuNo);
             pthread_cond_signal(&cond1);
             pthread_cond_wait(&cond, &mutex);
             pthread_mutex_unlock(&mutex);
-        }
-
-        //printf("anchor %d lines %d isEmpty %d\n", anchor, lines, isEmpty());
-        if((anchor+1 == lines)&&(isEmpty())){
-            printf("CPU %d exited", cpuNo);
+        }else {
+            printf("CPU %d exited\n", cpuNo);            
+            pthread_cond_signal(&cond);
+            pthread_mutex_unlock(&mutex);
             break;
         }
     }
@@ -278,7 +289,8 @@ int main(int args, char* argv[]){
 
     rq = malloc(m*sizeof*rq);   //memory allocation for readyQueue
 
-    lines = 50;
+    printf("Enter Number of Tasks : ");
+    scanf("%d", &lines);
 
     loadfile();     //loading whole file to the tempQueue
 
@@ -308,7 +320,9 @@ int main(int args, char* argv[]){
     pthread_join(id3,NULL);
     pthread_join(id4,NULL);
 
-    printf("Total Waiting Time ");
+    printf("Number of Tasks: %d\n", anchor);
+    printf("Average Waiting Time = %d seconds\n", total_waiting_time/num_tasks);
+    printf("Average Turnaround Time = %d seconds\n", total_turnaround_time/num_tasks);    
 
     return 0;
 }
