@@ -8,6 +8,8 @@
 
 // code for ready queue. peek, isEmpty, isFull, add,remove funtions are created for the ready queue 
 
+//ReadyQueue acts as a queue but is actually a structure with five elements in it. Every function regarding the ready queue is done on this structure
+
 struct readyQueue{
     int task;
     int burstTime;
@@ -16,27 +18,29 @@ struct readyQueue{
     int second;
 };
 
+//tempQueue is used to load all data from the task_file
 struct tempQueue{
     int task;
     int burstTime;
 };
 
-int m;
-int lines = 0;
-struct readyQueue *rq;   //global varriables for the ready queue
-struct tempQueue *tq;
-int front = 0;
-int rear = -1;
-int items = 0;
-int anchor = 0;
-int comp = 0;
+//global varriables for the ready queue
+int m;		
+int lines = 0;					//number of lines in the task_file is assigned to this. However there was an issue with loading the same file twice so, I manually setup this variable at the scheduler initialization
+struct readyQueue *rq;   		//readyQueue object pointer
+struct tempQueue *tq;			//tempQueue object pointer
+int front = 0;					//front of the readyQueue
+int rear = -1;					//rear of the readyQueue
+int items = 0;					//number of items in the readyQueue
+int anchor = 0;					//acts as the front of the tempQueue
+int comp = 0;					//used for broadcasting tasks thread status for all three cpus
 
 //shared variables
-
 int num_tasks = 0;
 int total_waiting_time = 0;
 int total_turnaround_time = 0;
 
+//mutex and cond
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond1 = PTHREAD_COND_INITIALIZER;
@@ -63,17 +67,17 @@ void fullQueue(){           //prints the readyQueue in full
 
 void add(int taskNo, int cpuBurst) {                //adds items to the ready queue
 
-      if(rear == m-1) {
+      if(rear == m-1) {			//resets rear to the first pointer when the end of queue is met
          rear = -1; 
       } 
       
-      ++rear;
+      ++rear;					//updates rear before adding the new item
       rq[rear].task = taskNo;
       rq[rear].burstTime = cpuBurst;
 
             time_t T= time(NULL);
             struct  tm tm = *localtime(&T);
-      items++;
+      items++;					//number of items are incremented by one
 
       rq[rear].hour = tm.tm_hour;
       rq[rear].minute = tm.tm_min;
@@ -94,7 +98,7 @@ int * remTask() {                                         //removes items from t
 
    front++;
 
-   if(front == m) {
+   if(front == m) {					//resets front to the first pointer when the end of queue is met
       front = 0;
    }
 	
@@ -166,26 +170,26 @@ void* task(void *arg1){
             pthread_mutex_lock(&mutex);                             //mutex lock
             add(tq[anchor].task,tq[anchor].burstTime);     //critical section
             l++;
-            anchor++;  
-            time_t T= time(NULL);
+            anchor++;  									//critical section
+            time_t T= time(NULL);						//accessing the local time structure
             struct  tm tm = *localtime(&T);
-            pthread_mutex_unlock(&mutex); 
+            pthread_mutex_unlock(&mutex); 				//mutex unlock
 
             fprintf(fp1,"%d %d %02d:%02d:%02d\n", tq[anchor+l].task,tq[anchor+l].burstTime, tm.tm_hour, tm.tm_min, tm.tm_sec);    //appends task number, burst time & executed time
         }
         else
         {
-            pthread_mutex_lock(&mutex);
-            pthread_cond_signal(&cond);             //signals 
+            pthread_mutex_lock(&mutex);				//mutex lock
+            pthread_cond_signal(&cond);             //signals CPU to release its' conditional wait
             printf("Task function waits\n");
-            pthread_cond_wait(&cond1,&mutex);
-            pthread_mutex_unlock(&mutex);
+            pthread_cond_wait(&cond1,&mutex);		//waits until signal is received from a CPU
+            pthread_mutex_unlock(&mutex);			//mutex unlock
         }
     }   
 
     printf("Task Function Completed\n");
 
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&mutex);		//used to change the broadcast value of comp. mutex used because it is shared by all three CPUs
     comp = 1;
     pthread_mutex_unlock(&mutex);
 
@@ -204,7 +208,9 @@ void* task(void *arg1){
     pthread_exit(NULL);
 }
 
-void* cpu(void *args2){                 //cpu function
+
+//cpu function
+void* cpu(void *args2){                 
     
     int cpuNo = *(int*) args2;
     FILE *fp2;
@@ -228,7 +234,7 @@ void* cpu(void *args2){                 //cpu function
             struct  tm tm = *localtime(&T);
 
             fprintf(fp2,"\nStatistics for CPU: %d", cpuNo);
-            num_tasks++;
+            num_tasks++;											//critical section
             
             fprintf(fp2,"\nTask %d", task);
 
@@ -237,8 +243,6 @@ void* cpu(void *args2){                 //cpu function
 
             total_waiting_time += ((60*60*(tm.tm_hour - thour)) + (60*(tm.tm_min - tminute)) + tm.tm_sec - tsecond);
             pthread_mutex_unlock(&mutex);
-
-            //printf("ID %d BT %d\n", task, burst_time);
 
             sleep(burst_time);
 
@@ -264,13 +268,13 @@ void* cpu(void *args2){                 //cpu function
 
         }else if(isEmpty()&&comp==0){
             printf("CPU %d Waits\n", cpuNo);
-            pthread_cond_signal(&cond1);
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_signal(&cond1);					//signals task function to release its' conditional wait
+            pthread_cond_wait(&cond, &mutex);				//waits until signal is received from task function
             pthread_mutex_unlock(&mutex);
         }else {
             printf("CPU %d exited\n", cpuNo);            
             pthread_cond_signal(&cond);
-            pthread_mutex_unlock(&mutex);
+            pthread_mutex_unlock(&mutex);					//releases mutex before CPU exits
             break;
         }
     }

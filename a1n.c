@@ -168,7 +168,7 @@ void* task(void *arg1){
             pthread_mutex_lock(&mutex);                             //mutex lock
             add(tq[anchor].task,tq[anchor].burstTime);     //critical section
             l++;
-            anchor++;  
+            anchor++;  										//critical section
             time_t T= time(NULL);			//accessing the local time structure
             struct  tm tm = *localtime(&T);
             pthread_mutex_unlock(&mutex); 							//mutex unlock
